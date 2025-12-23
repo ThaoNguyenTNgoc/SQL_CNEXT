@@ -1,0 +1,21 @@
+var jsonData= pm.response.json(); 
+let child= pm.response.json().data.cloneData;
+let failed=0;
+let success=0
+for (let data of child){
+    let error= data.error
+    if(error == true){
+        failed++;
+        }
+    else{
+        success++;
+        }
+}
+pm.test(failed+" Response is true", function(){
+    pm.expect(failed).to.lessThan(1);
+    }
+)
+pm.test(success + " Response is false", function () {
+    pm.expect(success).to.greaterThan(1);
+}
+)
