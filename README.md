@@ -64,3 +64,73 @@ where
 t.verify_tax_type= '7' and t.tax_status ='14' 
 and t.deleted='f' 
 order by t.created_at
+
+
+
+--- check postback ekyc
+select * from users u 
+join postback_log l on l."user"= u."id"
+join user_device ud on ud."user"= u."id"
+join device d on d."id"= ud.device
+where l.status='PASS' and u.identity_status='4' 
+and u."id" != 'cfcd8b1b-64fe-47bb-b62e-a0a590ab317f'
+and ud.deleted='f'
+-- group by  u."id", u.ref_code,l.response_at
+order by l.response_at desc
+
+--- check bonus phát sinh trong tuần
+select count(a.tracking_id) as count, a.project, b.bonus_total from project_apps_bonuses b
+join transactions t on t."id"= b."transaction"
+join project_apps a on a."id"= b.app
+where b.created_at>='2025-12-14 17:00:00' and b.created_at<'2025-12-21 17:00:00'
+and b.bonus_type='50'
+group by a.project, b.bonus_total
+
+
+-- check đơn truy thu 
+select u.phone, u.ref_code, a.tracking_id, a.cnext_id,a.process_note, b.bonus, t.description, t1.description from project_apps a 
+join users u on u."id" = a.ref_user 
+join project_apps_bonuses b on b."app"= a."id" 
+join transactions t on t."id"= b."transaction" 
+left join transactions t1 on t1."ref_transaction"= t."id" 
+where a.tracking_id in ('25349109',
+'26030229',
+'26164406',
+'26370024');
+
+select u."id", u.phone, u.ref_code,u.money, a.tracking_id, a.cnext_id from project_apps a 
+join users u on u."id" = a.ref_user 
+-- join project_apps_bonuses b on b."app"= a."id" 
+-- join transactions t on t."id"= b."transaction" 
+-- left join transactions t1 on t1."ref_transaction"= t."id" 
+where a.tracking_id in ('25349109',
+'26030229',
+'26164406',
+'26370024')
+order by a.tracking_id
+
+---
+select w.code, u.ref_code, u."id" from users u 
+join withdraw w on w."user"= u."id"
+where u.money<0 and w.status='50'
+
+---
+select * from queues where payload::json->>'id'='892878e6-6637-481b-9333-950fa38d1a6d'
+select * from user_taxes where "user" in (select "id" from users where phone='0399329406');
+select * from user_taxes where "user" in (select "id" from users where phone='0978146472');
+select * from user_taxes where "user" in (select "id" from users where phone='0362494715');
+
+
+select count(*) as count, nickname from users group by nickname
+having count(*)>1;
+
+select * from project_apps where tracking_id in ('25476711')
+
+-- test task crontab quét project_inspections
+SELECT a.tracking_id, b.app,s."name", i.* FROM "project_inspections" i 
+join project_apps a on a."id"= i."project_app"
+join master_status  s on s."id"= i.status
+left join 
+(select app from project_apps_bonuses group by app) b on b."app"= a."id"
+order by i.created_at 
+
