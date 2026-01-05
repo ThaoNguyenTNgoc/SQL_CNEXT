@@ -1,21 +1,301 @@
-var jsonData= pm.response.json(); 
-let child= pm.response.json().data.cloneData;
-let failed=0;
-let success=0
-for (let data of child){
-    let error= data.error
-    if(error == true){
-        failed++;
-        }
-    else{
-        success++;
-        }
-}
-pm.test(failed+" Response is true", function(){
-    pm.expect(failed).to.lessThan(1);
-    }
+-- check sót bonus_app
+select f."id" as fin_id, a.ref_user, a.process_date,a.tracking_id, m.map_code, m.release_phase, a.ref_user, s."name" from project_apps a 
+join project_status_map m on m."id"= a."process_status_map" and m.release_phase is not null 
+left join project_apps_bonuses b on b."app"= a."id" 
+left join project_apps_fin f on f."app"= a."id"
+left join project_apps_amb amb on amb."app"= a."id" 
+join project_schemes s on s."id"= f.project_scheme or s."id"= amb.project_scheme
+where s."id"!='c76c739b-5d7b-486e-bfe9-612a8a5b8039'
+and a.ref_user !='50738d80-6895-49a2-93d9-f8a8c39f4f24'
+and b."id" is null order by a.process_date
+
+-- danh sách user khoá code
+select p.code, u.ref_code, bl.created_at, sb.status, sb.note from users u 
+join project_role_subscriptions sb on sb."user"= u."id"
+join project_bonuses bn on bn."id"= sb.project_bonus
+join project_role_blacklist bl on bl."user"=  u."id" and bl.project_bonus= bn."id"
+join projects p on p."id"= bn."project"
+where p.status='20' ;
+
+-- check time_out
+SELECT e.payload,eil.request, response, eil.created_at::time ,e.* from event_invocation_logs eil
+join event_log e on eil.event_id = e."id"
+where  eil.created_at > '2025-12-17 03:00:00'
+and not eil.created_at::time BETWEEN '15:00:00' and '16:00:00'
+and delivered = false
+ORDER BY eil.created_at DESC;
+
+
+select * from transactions
+select u."id",u.ref_code, u.phone, u.money, tbl.sum_thu_nhap, (u.money-tbl.sum_thu_nhap) as lech_money  from users u 
+join (
+select sum(amount) as sum_thu_nhap, "user" from transactions group by "user") tbl on tbl."user"=u."id"
+where u."money" != tbl.sum_thu_nhap;
+
+select * FROM transactions
+WHERE  "user"='24c255a4-021e-4982-b29b-520e8f5f0330'
+
+select * from queues where payload::json->>'id'='43407bc5-660b-4836-bbbd-bd381fe1c986'
+
+
+
+select a.tracking_id, f.code,s.code, f.disbursed_date, b.bonus from project_apps a 
+join project_apps_fin f on f."app"= a."id"
+join project_apps_bonuses b on b."app"= a."id"
+join project_status s on s."id"= a.process_status
+where a.project='22d32fbf-0606-4d45-86f4-418a247026f8'
+and f.disbursed_date >='2025-10-31 17:00:00' and f.disbursed_date <'2025-11-30 17:00:00' 
+and b.bonus_type='50' order by s.code
+
+
+--- tax_request_weekly
+
+select t.created_at,u.full_name, u.phone, p.id_number, p.id_number_old, p.date_of_birth, p.place_of_issue_id_number,
+p.issue_date_id_number, p.permanent_address, p.address_detail, a1."name"
+, a2."name", a3."name", p.id_number_front_image, p.id_number_back_image,p.id_number_selfie_image from users u 
+join user_profiles p on p."user"= u."id"
+join user_taxes t on t."user"= u."id"
+join master_address a1  on a1."id"= p.province 
+join master_address a2  on a2."id"= p.district 
+join master_address a3  on a3."id"= p.ward 
+where 
+t.verify_tax_type= '7' and t.tax_status ='14' 
+and t.deleted='f' 
+order by t.created_at
+
+--- check postback ekyc
+select * from users u 
+join postback_log l on l."user"= u."id"
+join user_device ud on ud."user"= u."id"
+join device d on d."id"= ud.device
+where l.status='PASS' and u.identity_status='4' 
+and u."id" != 'cfcd8b1b-64fe-47bb-b62e-a0a590ab317f'
+and ud.deleted='f'
+-- group by  u."id", u.ref_code,l.response_at
+order by l.response_at desc
+
+--- check bonus phát sinh trong tuần
+select count(a.tracking_id) as count, a.project, b.bonus_total from project_apps_bonuses b
+join transactions t on t."id"= b."transaction"
+join project_apps a on a."id"= b.app
+where b.created_at>='2025-12-14 17:00:00' and b.created_at<'2025-12-21 17:00:00'
+and b.bonus_type='50'
+group by a.project, b.bonus_total
+
+
+-- check đơn truy thu 
+select u.phone, u.ref_code, a.tracking_id, a.cnext_id,a.process_note, b.bonus, t.description, t1.description from project_apps a 
+join users u on u."id" = a.ref_user 
+join project_apps_bonuses b on b."app"= a."id" 
+join transactions t on t."id"= b."transaction" 
+left join transactions t1 on t1."ref_transaction"= t."id" 
+where a.tracking_id in ('26152915');
+
+select u."id", u.phone, u.ref_code,u.money, a.tracking_id, a.cnext_id from project_apps a 
+join users u on u."id" = a.ref_user 
+-- join project_apps_bonuses b on b."app"= a."id" 
+-- join transactions t on t."id"= b."transaction" 
+-- left join transactions t1 on t1."ref_transaction"= t."id" 
+where a.tracking_id in ('26551444','26545052','26636082')
+order by a.tracking_id
+
+---
+select w.code, u.ref_code, u."id" from users u 
+join withdraw w on w."user"= u."id"
+where u.money<0 and w.status='50'
+
+---
+select * from queues where payload::json->>'id'='892878e6-6637-481b-9333-950fa38d1a6d'
+select * from user_taxes where "user" in (select "id" from users where phone='0399329406');
+select * from user_taxes where "user" in (select "id" from users where phone='0978146472');
+select * from user_taxes where "user" in (select "id" from users where phone='0362494715');
+
+
+select count(*) as count, nickname from users group by nickname
+having count(*)>1;
+
+select * from projects_apps where tracking_id in ('25476711')
+
+-- FEC hết hạn chưa quét 
+select * from project_apps where process_status ='6918ed9d-1c2f-4749-ab7c-97936efc4b20'and project='70cffd73-0b0b-474f-a5a6-0a93f1da7164' and expired_at<CURRENT_DATE; 
+
+
+--- đối soát hdbcrc 
+select
+DISTINCT(a.tracking_id)
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.code contract_number
+,f.gmv loan_AMT
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+join project_apps_bonuses b on b."app"= a."id" 
+join project_apps_fin f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='bbf6b089-de51-429a-bd3d-7fe7bcadb708'
+ and f.disbursed_date >='2025-11-30 17:00:00' and  f.disbursed_date <'2025-12-24 17:00:00';
+ 
+ 
+ -- đối soát dự án MBB
+ select
+DISTINCT(a.tracking_id)
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.partner_app_id contract_number
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+join project_apps_bonuses b on b."app"= a."id" 
+join project_apps_amb f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='d93060db-5f46-4f01-b72d-fa544b80c7a1'
+ and f.disbursed_date >='2025-10-15 17:00:00' and  f.disbursed_date <'2025-11-15 17:00:00';
+ 
+  -- đối soát dự án VPBNEO 
+ select
+DISTINCT(a.tracking_id)
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.partner_app_id contract_number
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+join project_apps_bonuses b on b."app"= a."id" 
+join project_apps_amb f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='401c35e3-d53e-4ad1-8c51-854ee0eeded3'
+ and f.disbursed_date >='2025-10-31 17:00:00' and  f.disbursed_date <'2025-11-30 17:00:00';
+ 
+ -- MUADEE
+select
+DISTINCT(a.tracking_id)
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.code contract_number
+,f.gmv loan_AMT
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+join project_apps_bonuses b on b."app"= a."id" 
+join project_apps_fin f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='22d32fbf-0606-4d45-86f4-418a247026f8'
+ and f.disbursed_date >='2025-11-30 17:00:00' and  f.disbursed_date <'2025-12-25 17:00:00';
+ 
+ -- đối soát CAKE_ WEB
+ select
+a.tracking_id
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.code contract_number
+,f.gmv loan_AMT
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+ join project_apps_bonuses b on b."app"= a."id" and b.bonus_type='50'
+-- left join project_status_map m on m."id"= a."process_status_map" 
+-- and m.release_phase='1' 
+-- and m.project='b7b42bdf-7796-457c-a822-a17b5894f926'
+join project_apps_fin f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='b7b42bdf-7796-457c-a822-a17b5894f926'
+ and f.disbursed_date >='2025-11-30 17:00:00' and  f.disbursed_date <'2025-12-30 17:00:00';
+ 
+ -- đối soát CAKE_CASHLOAN
+ select
+a.tracking_id
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.code contract_number
+,f.gmv loan_AMT
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+ from project_apps a 
+left join project_apps_bonuses b on b."app"= a."id" and b.bonus_type='50'
+-- left join project_status_map m on m."id"= a."process_status_map" 
+-- and m.release_phase='1' 
+-- and m.project='b7b42bdf-7796-457c-a822-a17b5894f926'
+join project_apps_fin f on f."app"= a."id"
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='9f135d9d-2616-49d8-b193-fd8e4fb62ae9'
+and f.disbursed_date >='2025-11-23 17:00:00' and  f.disbursed_date <'2025-12-30 17:00:00';
+ 
+ 
+ --- withdraw 
+  select u.full_name, ub.account_holder, ub.account_number, m.bank_name_full, u.ref_code, tax.tax_code, w.amount, w.tax_amount,
+	w.fee, w.receive_amount,
+	to_timestamp(TO_CHAR(   w.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at,
+ w.yyyymm, w.code from users u
+ join transactions t on t."user"= u."id" 
+ join withdraw w on w."id"= t.withdraw and w."user"= u."id"
+ join user_taxes tax on tax."user"= u."id" and tax.tax_status='16'
+ join user_banking ub on ub."user"= u."id" and ub."id"= w.user_banking
+  join master_banks m on m."id"= ub.bank_branch
+ where u.identity_status='12' and u.status='1'
+ and w.status='50' and ub.deleted='f'
+ and w.created_at >='2025-12-28 17:00:00' and  w.created_at <'2026-01-04 17:00:00'
+ and t.type='62'
+ 
+ -- Đối soát F88
+ 
+ select
+a.tracking_id
+, ma.map_name
+,a.customer_phone
+,to_timestamp(TO_CHAR(  a.created_at + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  created_at
+,to_timestamp(TO_CHAR(  a.process_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS  process_date
+,f.code app_id
+,a.partner_contract_number
+,f.gmv loan_AMT
+,to_timestamp(TO_CHAR( f.disbursed_date + INTERVAL '7 hour', 'YYYY-MM-DD HH24:mi:ss'),'YYYY-MM-DD HH24:mi:ss') AS disbursed_date
+,s."name"
+,s.sub_title
+,m."name"
+ from project_apps a 
+left join project_apps_bonuses b on b."app"= a."id" and b.bonus_type='50'
+left join project_status_map ma on ma."id"= a."process_status_map" 
+	and ma.release_phase='1' 
+	and ma.project='670870c8-02f4-4c9b-9c2a-2558f66bba7b'
+join project_apps_fin f on f."app"= a."id"
+join master_type m on m."id"= a.customer_type
+join project_schemes s on s."id"= f.project_scheme
+where
+ a.project='670870c8-02f4-4c9b-9c2a-2558f66bba7b'
+and f.disbursed_date >='2025-11-30 17:00:00' and  f.disbursed_date <'2025-12-31 17:00:00';
+ 
+
+ -- Đối soát Blueinfo 
+ select count(*) as count,  service_code 
+	from (
+		select  service_code,transaction_id, status
+			from (
+				select  response::json->>'service_code' as service_code
+				,response::json->>'response_time' as response_time
+				,transaction_id
+				,status,response_at 
+				from postback_log 
+				where "response_at" >='2025-11-30 17:00:00' 
+				and "response_at" <'2025-12-31 17:00:00'
+				and response::json->>'status'='1'
+-- 				and session_partner not in ('1d031aeb-49ae-472d-b2a2-f2d09c2fdc08','5b268072-674f-4f0c-be72-f0fcbdf67493')
+-- 				and response::json->>'service_code'='ID_READER'
 )
-pm.test(success + " Response is false", function () {
-    pm.expect(success).to.greaterThan(1);
-}
-)
+group by service_code, status,transaction_id ) 
+group by service_code; 
+
+
+ 
+ 
